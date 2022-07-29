@@ -11,10 +11,15 @@ import RealityKit
 struct ContentView: View {
     
     var symbolRow: [String] {
-        return ["😀","😃","😄","😁","😆","😅","😂","🤣","😇","😉","😊","😀"]
+        return ["🍏","🍎","🍐","🍋","🍌","🍉","🍇","🍓","🍈","🍒","🫐",""]
     }
     var symbols: [String] {
-        return Array(repeating: symbolRow, count: rowCount).flatMap{ $0 }
+        var output: [String] = []
+        for i in 0...rowCount-2{
+            output.append(contentsOf: symbolRow.map{ "\(i)"+$0 })
+        }
+        output.append(contentsOf: Array(repeating: "", count: symbolRow.count))
+        return output
     }
     var rowCount: Int {
         return symbolRow.count
@@ -39,22 +44,21 @@ struct ContentView: View {
                 }
             }
             .frame(width: totalWidth, height: totalHeight)
-            .animation(.spring(), value: focalPoint)
             .ignoresSafeArea()
             .border(Color.red)
             
             ZStack{
                 GeometryReader{ proxy in
                     let apoints: [XYZPoint] = getPoints()
-                    let rotateValue = getRotateValue()
-                    let bpoints: [XYZPoint] = getXYZPoints()
-                        .getRotateXAxis(rotate: rotateValue.y)
-                        .getRotateYAxis(rotate: rotateValue.x)
+                    //let rotateValue = getRotateValue()
+                    let bpoints: [XYZPoint] = getXYZPoints(origin: focalPoint ?? CGPoint(x: 0, y: 0))
+                        //.getRotateXAxis(rotate: rotateValue.y)
+                        //.getRotateYAxis(rotate: rotateValue.x)
                         .getMove(origin: focalPoint ?? CGPoint(x: 0, y: 0))
                     ForEach(Array(symbols.enumerated()), id: \.0){
                         index, symbol in
                         let point = focalPoint == nil ? apoints[index] : bpoints[index]
-                        let scale = focalPoint == nil ? 1 : abs(point.z / 100.0 * 1.5)
+                        let scale = focalPoint == nil ? 1 : abs(point.z / 100.0 * 1.7)
                         Text(symbol)
                             .font(.system(size: 20))
                             .scaleEffect(x: scale, y: scale)
@@ -92,19 +96,29 @@ struct ContentView: View {
         return output
     }
     
-    func getXYZPoints() -> [XYZPoint]{
-        
+    func getXYZPoints(origin: CGPoint) -> [XYZPoint]{
+
         let r: CGFloat = 100.0
         var output: [XYZPoint] = []
         
-        for indexX in 0...rowCount-1{
-            let lat: CGFloat = CGFloat(indexX) * CGFloat.pi / CGFloat(rowCount-1)
-            for indexY in 0...rowCount-1{
-                let lon: CGFloat  = CGFloat(indexY * 2) * CGFloat.pi / CGFloat(rowCount-1)
+        for indexY in 0...rowCount-1{
+            
+            var newOriginY = origin.y - 150
+            if newOriginY <= 0 { newOriginY += 300 }
+            var newY: CGFloat = CGFloat(indexY) - newOriginY / totalWidth * CGFloat(rowCount-1)
+            if newY <= 0 { newY += CGFloat(rowCount-1) }
+            let lat: CGFloat = CGFloat(newY) * CGFloat.pi / CGFloat(rowCount-1)
+            
+            for indexX in 0...rowCount-1{
+                
+                var newX: CGFloat = CGFloat(indexX) - origin.x / totalHeight * CGFloat(rowCount-1)
+                if newX <= 0 { newX += CGFloat(rowCount-1) }
+                let lon: CGFloat = CGFloat(newX * 2) * CGFloat.pi / CGFloat(rowCount-1)
+                
                 let x: CGFloat = sin(lat) * cos(lon) * r
                 let y: CGFloat = sin(lat) * sin(lon) * r
                 let z: CGFloat = cos(lat) * r
-                let xyzPoint = XYZPoint(x: y , y: z , z: x)
+                let xyzPoint = XYZPoint(x: y , y: -z , z: x)
                 output.append(xyzPoint)
             }
         }
