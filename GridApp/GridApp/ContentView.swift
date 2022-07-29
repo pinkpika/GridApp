@@ -9,71 +9,146 @@ import SwiftUI
 import RealityKit
 
 struct ContentView: View {
-    var symbols: [String] = [
-        "😀","😃","😄","😁","😆","😅","😂","🤣",
-        "😀","😃","😄","😁","😆","😅","😂","🤣",
-        "😀","😃","😄","😁","😆","😅","😂","🤣",
-        "😀","😃","😄","😁","😆","😅","😂","🤣",
-        "😀","😃","😄","😁","😆","😅","😂","🤣",
-        "😀","😃","😄","😁","😆","😅","😂","🤣",
-        "😀","😃","😄","😁","😆","😅","😂","🤣",
-        "😀","😃","😄","😁","😆","😅","😂","🤣"
-    ]
-    var rowCount = 8
+    
+    var symbolRow: [String] {
+        return ["😀","😃","😄","😁","😆","😅","😂","🤣","😇","😉","😊","😀"]
+    }
+    var symbols: [String] {
+        return Array(repeating: symbolRow, count: rowCount).flatMap{ $0 }
+    }
+    var rowCount: Int {
+        return symbolRow.count
+    }
     var totalWidth: CGFloat = 300.0
     var totalHeight: CGFloat = 300.0
     @State var focalPoint: CGPoint? = nil
+    
     var body: some View {
-        ZStack{
-            GeometryReader{ proxy in
-                let points = getPoints()
-                ForEach(Array(symbols.enumerated()), id: \.0){
-                    index, symbol in
-                    let point = points[index]
-                    //let (sRect, scale, _) = rect.zoomTransform(around: focalPoint, radius: 80, zoom: 1.5)
-                    Text(symbol)
-                        .font(.system(size: 20))
-                        //.scaleEffect(x: scale, y: scale, anchor: .bottom)
-                        .position(point)
-                        //.animation(.spring(), value: focalPoint)
+        VStack{
+            
+            ZStack{
+                GeometryReader{ proxy in
+                    let points = getPoints()
+                    ForEach(Array(symbols.enumerated()), id: \.0){
+                        index, symbol in
+                        let point = points[index]
+                        Text(symbol)
+                            .font(.system(size: 20))
+                            .position(CGPoint(x: point.x, y: point.y))
+                    }
                 }
             }
+            .frame(width: totalWidth, height: totalHeight)
+            .animation(.spring(), value: focalPoint)
+            .ignoresSafeArea()
+            .border(Color.red)
+            
+            ZStack{
+                GeometryReader{ proxy in
+                    let apoints: [XYZPoint] = getPoints()
+                    let rotateValue = getRotateValue()
+                    let bpoints: [XYZPoint] = getXYZPoints()
+                        .getRotateXAxis(rotate: rotateValue.y)
+                        .getRotateYAxis(rotate: rotateValue.x)
+                        .getMove(origin: focalPoint ?? CGPoint(x: 0, y: 0))
+                    ForEach(Array(symbols.enumerated()), id: \.0){
+                        index, symbol in
+                        let point = focalPoint == nil ? apoints[index] : bpoints[index]
+                        let scale = focalPoint == nil ? 1 : abs(point.z / 100.0 * 1.5)
+                        Text(symbol)
+                            .font(.system(size: 20))
+                            .scaleEffect(x: scale, y: scale)
+                            .position(CGPoint(x: point.x, y: point.y))
+                            .zIndex(scale)
+                            .opacity(point.z >= 0.0 ? 1.0 : 0.0)
+                    }
+                }
+            }
+            .frame(width: totalWidth, height: totalHeight)
+            .animation(.spring(), value: focalPoint)
+            .ignoresSafeArea()
+            .gesture(
+                DragGesture()
+                .onChanged { val in
+                    self.focalPoint = val.location
+                }
+                .onEnded { val in
+                    self.focalPoint = nil
+                }
+            )
+            .border(Color.red)
         }
-        .frame(width: totalWidth, height: totalHeight)
-        .animation(.spring(), value: focalPoint)
-        .ignoresSafeArea()
     }
     
-    func getPoints() -> [CGPoint]{
+    func getPoints() -> [XYZPoint]{
         let width = totalWidth / CGFloat(rowCount-1)
         let height = totalHeight / CGFloat(rowCount-1)
-        return symbols.enumerated().map{
-            (index, element) in
+        let output = symbols.enumerated().map{
+            (index, element) -> XYZPoint in
             let x: CGFloat = CGFloat( index % rowCount ) * width
             let y: CGFloat = CGFloat( index / rowCount ) * height
-            return CGPoint(x: x, y: y)
+            return XYZPoint(x: x, y: y, z: 0)
         }
-    }
-    
-    struct XYZPoint{
-        let x: CGFloat
-        let y: CGFloat
-        let z: CGFloat
+        return output
     }
     
     func getXYZPoints() -> [XYZPoint]{
+        
+        let r: CGFloat = 100.0
         var output: [XYZPoint] = []
-        for indexX in 0...rowCount{
-            let lat: CGFloat = CGFloat(indexX) * CGFloat.pi / CGFloat(rowCount)
-            for indexY in 0...rowCount{
-                let lon: CGFloat  = CGFloat(indexY * 2) * CGFloat.pi / CGFloat(rowCount)
-                let x = sin(lat) * cos(lon)
-                let y = sin(lat) * sin(lon)
-                let z = cos(lat)
-                output.append(XYZPoint(x: y, y: z, z: x))
+        
+        for indexX in 0...rowCount-1{
+            let lat: CGFloat = CGFloat(indexX) * CGFloat.pi / CGFloat(rowCount-1)
+            for indexY in 0...rowCount-1{
+                let lon: CGFloat  = CGFloat(indexY * 2) * CGFloat.pi / CGFloat(rowCount-1)
+                let x: CGFloat = sin(lat) * cos(lon) * r
+                let y: CGFloat = sin(lat) * sin(lon) * r
+                let z: CGFloat = cos(lat) * r
+                let xyzPoint = XYZPoint(x: y , y: z , z: x)
+                output.append(xyzPoint)
             }
         }
         return output
+    }
+    
+    func getRotateValue() -> (x: CGFloat, y: CGFloat){
+        if let focalPoint = focalPoint {
+            return (x: ( focalPoint.x / totalWidth ) * CGFloat.pi * -2.0,
+                    y: ( focalPoint.y / totalHeight ) * CGFloat.pi * -2.0)
+        } else {
+            return (x: 0.0, y: 0.0)
+        }
+    }
+}
+
+struct XYZPoint{
+    let x: CGFloat
+    let y: CGFloat
+    let z: CGFloat
+}
+
+extension Array where Element == XYZPoint {
+    func getMove(origin: CGPoint) -> Self{
+        return self.map{ one in
+            XYZPoint(x: one.x + origin.x, y: one.y + origin.y, z: one.z)
+        }
+    }
+    func getRotateXAxis(rotate: CGFloat) -> Self{
+        return self.map{ one in
+            return XYZPoint(x: one.x,
+                            y: one.y * cos(rotate) + one.z * sin(rotate),
+                            z: -1 * one.y * sin(rotate) + one.z * cos(rotate))
+        }
+    }
+    func getRotateYAxis(rotate: CGFloat) -> Self{
+        return self.map{ one in
+            return XYZPoint(x: one.x * cos(rotate) + one.z * sin(rotate),
+                            y: one.y,
+                            z: -1 * one.x * sin(rotate) + one.z * cos(rotate))
+        }
+    }
+    func getPerspective() -> Self{
+        return self
     }
 }
 
